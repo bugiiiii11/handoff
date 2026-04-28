@@ -13,11 +13,11 @@ Run once to figure out what kind of project this is:
   - **yes** -> single-repo or monorepo. Use `git <cmd>` (no `-C`).
   - **no** -> multi-repo. Scan one level deep for any subdirectory containing a `.git` folder. Each match is a repo. Use `git -C <subdir> <cmd>` per repo.
 
-If neither shape is found (no git repo in cwd or one level down), say so and stop -- nothing to wrap.
+If neither shape is found, this is a **docs-only project** (planning, research, notes -- no code yet). Continue in docs-only mode: skip the git steps below, but still run handoff/decisions updates and the "What To Do Next" check. Don't stop.
 
 ## Step 2 -- Assess current state (do all in parallel)
 
-For each detected repo, run in parallel:
+If git repos were detected, for each one run in parallel (skip in docs-only mode):
 
 - `git [-C <repo>] status -sb` -- uncommitted changes + branch + tracking info
 - `git [-C <repo>] diff --stat` -- what changed
@@ -45,13 +45,16 @@ Present a brief status check:
 **Handoff status:** <up to date / needs session N section / stale / not present>
 ```
 
-In single-repo mode, the `Repo` column shows `.` (or the cwd folder name). In multi-repo mode, it shows each subdir name.
+In single-repo mode, the `Repo` column shows `.` (or the cwd folder name). In multi-repo mode, it shows each subdir name. In docs-only mode, replace the Repo Status table with `**Mode:** docs-only (no git repo)` and show only the Handoff status line.
 
-If everything is clean, handoff is current, and there's nothing to push, say "All wrapped. Nothing to do." and stop.
+If everything is clean, handoff is current, and there's nothing to push, say "All wrapped. Nothing to do." and stop. In docs-only mode, the bar is just: handoff is current and no decisions to log.
 
 ## Step 4 -- Act on each issue
 
 ### Code changes (commit & push per repo)
+
+Skip this subsection entirely in docs-only mode (no repos to commit).
+
 - For each repo with uncommitted changes:
   - Show the changed files
   - Ask: "Want me to commit & push <repo>?"
