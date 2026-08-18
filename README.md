@@ -26,10 +26,22 @@ Handoff is a small, opinionated workflow that fixes this. One file (`handoff.md`
 
 | Command | When to run | What it does |
 |---------|-------------|--------------|
-| **/handoff start** | First message of a session | Reads `handoff.md`, checks git status / unpushed commits, surfaces any emergency snapshot from the previous session, presents a ~25-line briefing. Read-only. |
-| **/handoff wrap** | After a chunk of work, or at session end | Updates `handoff.md` (docs before commit), rotates overflow to `handoff-archive.md`, commits locally. Never pushes without an explicit request. Idempotent — safe to call repeatedly. |
+| **/handoff start** | First message of a session | **Fetches origin first, then reconciles** (see below), surfaces any emergency snapshot from the previous session, presents a ~25-line briefing. Read-only apart from a lossless fast-forward pull. |
+| **/handoff wrap** | After a chunk of work, or at session end | Fetches and reconciles, then updates `handoff.md` (docs before commit), rotates overflow to `handoff-archive.md`, commits locally. Never pushes without an explicit request. Idempotent — safe to call repeatedly. |
 | **/handoff save** | Fire exit — context is nearly full | Minimal-tool-call dump to `emergency-snapshot.md`. No commit, no questions. `/handoff start` consumes and deletes it next session. |
-| **/handoff docs** | Doc refresh without a commit | Runs the wrap's documentation update + rotation steps only. |
+| **/handoff docs** | Mid-session checkpoint — or when the 20% hook nudges | Runs the wrap's documentation update + rotation steps only. No commit, and the session continues. |
+
+### Sharing a repo with a teammate
+
+`handoff.md` is the tasklist, so a briefing built from a stale copy is worse than no briefing — it hands you a confident summary of work someone else already finished. Both `start` and `wrap` therefore establish repo state **before** they trust the file:
+
+| Situation | What happens |
+|---|---|
+| Local is behind, nothing local to lose | `git pull --ff-only`, then brief from the pulled `handoff.md` |
+| Diverged, or behind with a dirty tree | No pull. Brief from origin's copy (`git show @{u}:handoff.md`) and flag it — you reconcile, not the model |
+| Up to date, or no remote at all | Read `handoff.md` normally |
+
+The rule is detect-and-reconcile, never silently overwrite: the model will fast-forward when that is lossless and stop and tell you when it is not.
 
 ### The files
 
@@ -72,10 +84,12 @@ Uninstall: `rm -rf ~/.claude/skills/handoff` (PowerShell: `Remove-Item -Recurse 
 
 The skill tells Claude *how* to wrap; the hooks tell it *when*. Two small bash scripts read the **real context size** from the session transcript (the last assistant message's `input_tokens + cache_creation_input_tokens + cache_read_input_tokens` — the exact prompt size of the latest API call) and nudge a wrap at two thresholds:
 
-- **Soft (default 15%** of the window): "finish the current task, then run `/handoff wrap`."
-- **Hard (default 17%)**: "stop new work and wrap NOW."
+- **Soft (default 20%** of the window) — *checkpoint*: "run `/handoff docs` and keep working." State is persisted, the session does not end.
+- **Hard (default 22%)** — *wrap*: "stop new work and wrap NOW."
 
-Why those numbers: on 1M-context models, requests past 20% (200k tokens) are billed at the long-context premium rate. Wrapping by 17% keeps every request below the cliff.
+The two rungs deliberately ask for different things. When soft also ended the session, every nudge that landed mid-task forced a choice between abandoning the work and ignoring the hook — and the hook lost. Splitting persistence (soft) from ending (hard) makes the soft rung cheap enough to always obey.
+
+Why those numbers: not cost. Current 1M-context models (Opus 5 / 4.8 / 4.7, Sonnet 5) bill the full window at a flat rate, with no long-context premium — an earlier version of this file claimed otherwise, which was a leftover from the Sonnet 4.x 1M beta. The real constraint is **answer quality**, which degrades long before the window is full. Both thresholds are env-tunable (`AUTOWRAP_WINDOW`, `AUTOWRAP_SOFT_PCT`, `AUTOWRAP_HARD_PCT`).
 
 - [`hooks/auto-wrap.sh`](hooks/auto-wrap.sh) — **Stop** event. Escalates once at soft and once at hard (per-session marker files), reports the real percentage, and never blocks twice.
 - [`hooks/context-warn.sh`](hooks/context-warn.sh) — **UserPromptSubmit** event. Injects a one-line advisory *before* new work starts, catching the case where a single long turn crossed the threshold.
@@ -120,7 +134,7 @@ cp handoff/hooks/*.sh .claude/hooks/
 
 Hooks load at session start — **restart Claude Code to activate**.
 
-Tune via environment variables: `AUTOWRAP_WINDOW` (default `1000000`), `AUTOWRAP_SOFT_PCT` (default `15`), `AUTOWRAP_HARD_PCT` (default `17`). On a 200k-window model, set `AUTOWRAP_WINDOW=200000` and pick higher percentages (e.g. soft 60 / hard 75).
+Tune via environment variables: `AUTOWRAP_WINDOW` (default `1000000`), `AUTOWRAP_SOFT_PCT` (default `20`), `AUTOWRAP_HARD_PCT` (default `22`). On a 200k-window model, set `AUTOWRAP_WINDOW=200000` and pick higher percentages (e.g. soft 60 / hard 75).
 
 Verify the scripts on your machine with the bundled smoke tests (17 checks, synthetic transcripts):
 
@@ -138,7 +152,9 @@ A typical day:
 /handoff start            # briefing — what was last touched, what's next
 ... do work ...
 /handoff wrap             # update handoff.md, rotate overflow, commit locally
-... more work, context filling up, hook nudges at 15% ...
+... more work, context filling up, hook nudges a checkpoint at 20% ...
+/handoff docs             # persist state, keep working — no commit, session continues
+... hook nudges the full wrap at 22% ...
 /handoff wrap             # wrap again — idempotent, updates the session section in place
 ... context critical ...
 /handoff save             # fire-exit snapshot
