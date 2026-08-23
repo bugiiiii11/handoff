@@ -136,11 +136,45 @@ Hooks load at session start — **restart Claude Code to activate**.
 
 Tune via environment variables: `AUTOWRAP_WINDOW` (default `1000000`), `AUTOWRAP_SOFT_PCT` (default `20`), `AUTOWRAP_HARD_PCT` (default `22`). On a 200k-window model, set `AUTOWRAP_WINDOW=200000` and pick higher percentages (e.g. soft 60 / hard 75).
 
-Verify the scripts on your machine with the bundled smoke tests (17 checks, synthetic transcripts):
+Verify the scripts on your machine with the bundled smoke tests (21 checks, synthetic transcripts):
 
 ```bash
 bash handoff/hooks/test-hooks.sh
 ```
+
+A ready-to-merge wiring file for **all** the hooks in this repo — the auto-wrap pair plus the safety set below — lives at [examples/settings-hooks.json](examples/settings-hooks.json).
+
+---
+
+## Optional: safety hooks
+
+Independent of the session lifecycle, [`hooks/safety/`](hooks/safety) ships five guardrails that run on every tool call. They're opt-in: install them only if you want them.
+
+| Hook | Event | What it does |
+|------|-------|--------------|
+| [`block-dangerous.sh`](hooks/safety/block-dangerous.sh) | PreToolUse `Bash\|PowerShell` | Blocks recursive root/home deletes (including flag-reorder variants), curl-pipe-to-shell, disk formatting, force-pushes to main/master, reads of `.env` and SSH/cloud credential files, and `curl`/`wget` **uploads**. Plain GET fetches and ordinary subdirectory deletes stay allowed. |
+| [`protect-files.sh`](hooks/safety/protect-files.sh) | PreToolUse `Edit\|Write` | Blocks writes to secrets — `.env`, `*.pem`, `*.key`, keystores, `.aws/credentials`, kubeconfig, `.npmrc`. `.env.example` / `.sample` / `.template` stay writable. |
+| [`block-internal-urls.sh`](hooks/safety/block-internal-urls.sh) | PreToolUse `WebFetch` | SSRF guard: blocks localhost, RFC1918 ranges, link-local `169.254.*` (the cloud instance-metadata endpoint), `metadata.google.internal`, `file://`, `ftp://` and URL shorteners. |
+| [`scan-injection.sh`](hooks/safety/scan-injection.sh) | PostToolUse | Warns on prompt-injection signatures in tool output ("ignore all previous instructions", "you are now DAN", …) and logs them. Warn-only — PostToolUse cannot prevent. |
+| [`audit-all.sh`](hooks/safety/audit-all.sh) | PostToolUse | Appends every shell command, fetched URL and search query to `~/.claude/safety-audit.jsonl` (override with `CLAUDE_SAFETY_AUDIT_FILE`). |
+
+Two deliberate design choices worth knowing before you install:
+
+- **The blocking hooks fail closed.** If `jq` can't be found they exit 2 (block) rather than silently allowing the call — a safety hook that quietly stops evaluating is worse than no hook. The audit and scan hooks are warn-only, so they fail *open* and just skip. All five bundle a Windows `jq` resolver, since `jq` is usually off PATH in Git Bash.
+- **`block-dangerous.sh` covers the PowerShell tool too**, with its own catastrophe patterns — bash regexes never match PowerShell syntax. Wire the matcher as `Bash|PowerShell`, not `Bash`, or PowerShell commands skip the hook entirely.
+
+```bash
+mkdir -p .claude/hooks
+cp handoff/hooks/safety/*.sh .claude/hooks/
+```
+
+Then merge the `PreToolUse` / `PostToolUse` blocks from [examples/settings-hooks.json](examples/settings-hooks.json) into your settings and restart Claude Code. Verify with the bundled smoke tests (29 checks, synthetic payloads):
+
+```bash
+bash handoff/hooks/safety/test-safety-hooks.sh
+```
+
+These are a sensible baseline, not a security boundary — a determined agent can phrase around any regex. Treat them as a seatbelt against accidents, and tune the pattern lists to your own project.
 
 ---
 
