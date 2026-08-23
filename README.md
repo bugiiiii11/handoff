@@ -168,7 +168,7 @@ mkdir -p .claude/hooks
 cp handoff/hooks/safety/*.sh .claude/hooks/
 ```
 
-Then merge the `PreToolUse` / `PostToolUse` blocks from [examples/settings-hooks.json](examples/settings-hooks.json) into your settings and restart Claude Code. Verify with the bundled smoke tests (33 checks, synthetic payloads):
+Then merge the `PreToolUse` / `PostToolUse` blocks from [examples/settings-hooks.json](examples/settings-hooks.json) into your settings and restart Claude Code. Verify with the bundled smoke tests (38 checks, synthetic payloads):
 
 ```bash
 bash handoff/hooks/safety/test-safety-hooks.sh

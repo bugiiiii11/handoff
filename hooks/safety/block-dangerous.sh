@@ -65,6 +65,14 @@ BLOCKED_PATTERNS=(
   '(tee|cp|mv)[^|]*\.env($|[^.a-zA-Z])'
   'sed[^|]*-i[^|]*\.env($|[^.a-zA-Z])'
   '(cat|head|tail|less|more)[^|]*\.env($|[^.a-zA-Z])'
+  # The guard above intentionally lets ANY `.env.<suffix>` through so templates
+  # stay usable -- but that also let `.env.local` and `.env.production`, the files
+  # that actually hold live secrets, walk out via bash. Name the secret-bearing
+  # suffixes explicitly; .env.example/.sample/.template stay allowed by omission.
+  '(>|>>)[[:space:]]*[^|]*\.env\.(local|production|prod|development|dev|staging|stage|test|preview)'
+  '(tee|cp|mv)[^|]*\.env\.(local|production|prod|development|dev|staging|stage|test|preview)'
+  'sed[^|]*-i[^|]*\.env\.(local|production|prod|development|dev|staging|stage|test|preview)'
+  '(cat|head|tail|less|more)[^|]*\.env\.(local|production|prod|development|dev|staging|stage|test|preview)'
   # SSH / cloud / credential file reads via bash
   '(cat|head|tail|less|more)[^|]*(\.ssh/|id_rsa|id_ed25519|id_ecdsa|\.aws/credentials|\.aws/config|\.git-credentials|\.netrc|\.npmrc|\.pypirc|\.kube/config|\.gnupg/|\.ethereum/|\.bitcoin/)'
 
