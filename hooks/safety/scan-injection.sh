@@ -3,7 +3,7 @@
 # Pattern set informed by public prompt-injection research (50+ attack signatures)
 # Exit 0 always (PostToolUse can only warn, not prevent)
 #
-# Wire on PostToolUse with matcher "Read|WebFetch|WebSearch|Bash|Grep|Task".
+# Wire on PostToolUse with matcher "Read|WebFetch|WebSearch|Bash|PowerShell|Grep|Task".
 
 # Resolve jq (often not on PATH in Git Bash on Windows)
 JQ="jq"
@@ -23,8 +23,9 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | "$JQ" -r '.tool_name')
 
 # Only scan tools that return external/untrusted content
+# (PowerShell output is exactly as untrusted as Bash output)
 case "$TOOL_NAME" in
-  Read|WebFetch|WebSearch|Bash|Grep|Task) ;;
+  Read|WebFetch|WebSearch|Bash|PowerShell|Grep|Task) ;;
   *) exit 0 ;;
 esac
 

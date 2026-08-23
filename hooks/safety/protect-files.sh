@@ -2,7 +2,7 @@
 # PreToolUse: Block Write/Edit on sensitive files
 # Exit 2 = block, Exit 0 = allow
 #
-# Wire on PreToolUse with matcher "Edit|Write".
+# Wire on PreToolUse with matcher "Edit|Write|MultiEdit|NotebookEdit".
 
 # Resolve jq (often not on PATH in Git Bash on Windows), then fail closed
 JQ="jq"
@@ -24,11 +24,13 @@ fi
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | "$JQ" -r '.tool_name')
 
-if [[ ! "$TOOL_NAME" =~ ^(Edit|Write)$ ]]; then
+if [[ ! "$TOOL_NAME" =~ ^(Edit|Write|MultiEdit|NotebookEdit)$ ]]; then
   exit 0
 fi
 
-FILE=$(echo "$INPUT" | "$JQ" -r '.tool_input.file_path // ""')
+# MultiEdit carries file_path like Edit; NotebookEdit uses notebook_path. Covering
+# only Edit|Write leaves those two as an open bypass straight to a secret file.
+FILE=$(echo "$INPUT" | "$JQ" -r '.tool_input.file_path // .tool_input.notebook_path // ""')
 
 # Allow env *templates* (no real secrets) before the .env block below catches them.
 case "$FILE" in

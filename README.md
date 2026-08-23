@@ -153,7 +153,7 @@ Independent of the session lifecycle, [`hooks/safety/`](hooks/safety) ships five
 | Hook | Event | What it does |
 |------|-------|--------------|
 | [`block-dangerous.sh`](hooks/safety/block-dangerous.sh) | PreToolUse `Bash\|PowerShell` | Blocks recursive root/home deletes (including flag-reorder variants), curl-pipe-to-shell, disk formatting, force-pushes to main/master, reads of `.env` and SSH/cloud credential files, and `curl`/`wget` **uploads**. Plain GET fetches and ordinary subdirectory deletes stay allowed. |
-| [`protect-files.sh`](hooks/safety/protect-files.sh) | PreToolUse `Edit\|Write` | Blocks writes to secrets — `.env`, `*.pem`, `*.key`, keystores, `.aws/credentials`, kubeconfig, `.npmrc`. `.env.example` / `.sample` / `.template` stay writable. |
+| [`protect-files.sh`](hooks/safety/protect-files.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` | Blocks writes to secrets — `.env`, `*.pem`, `*.key`, keystores, `.aws/credentials`, kubeconfig, `.npmrc`. `.env.example` / `.sample` / `.template` stay writable. |
 | [`block-internal-urls.sh`](hooks/safety/block-internal-urls.sh) | PreToolUse `WebFetch` | SSRF guard: blocks localhost, RFC1918 ranges, link-local `169.254.*` (the cloud instance-metadata endpoint), `metadata.google.internal`, `file://`, `ftp://` and URL shorteners. |
 | [`scan-injection.sh`](hooks/safety/scan-injection.sh) | PostToolUse | Warns on prompt-injection signatures in tool output ("ignore all previous instructions", "you are now DAN", …) and logs them. Warn-only — PostToolUse cannot prevent. |
 | [`audit-all.sh`](hooks/safety/audit-all.sh) | PostToolUse | Appends every shell command, fetched URL and search query to `~/.claude/safety-audit.jsonl` (override with `CLAUDE_SAFETY_AUDIT_FILE`). |
@@ -161,14 +161,14 @@ Independent of the session lifecycle, [`hooks/safety/`](hooks/safety) ships five
 Two deliberate design choices worth knowing before you install:
 
 - **The blocking hooks fail closed.** If `jq` can't be found they exit 2 (block) rather than silently allowing the call — a safety hook that quietly stops evaluating is worse than no hook. The audit and scan hooks are warn-only, so they fail *open* and just skip. All five bundle a Windows `jq` resolver, since `jq` is usually off PATH in Git Bash.
-- **`block-dangerous.sh` covers the PowerShell tool too**, with its own catastrophe patterns — bash regexes never match PowerShell syntax. Wire the matcher as `Bash|PowerShell`, not `Bash`, or PowerShell commands skip the hook entirely.
+- **Matchers must list every tool that can reach the thing you're guarding.** A matcher narrower than the hook's own coverage is a silent bypass: `Bash` alone lets PowerShell commands skip `block-dangerous.sh`, and `Edit|Write` alone lets `MultiEdit` walk straight into a secret file. Use the matchers in the table above — they're what the shipped [examples/settings-hooks.json](examples/settings-hooks.json) already sets.
 
 ```bash
 mkdir -p .claude/hooks
 cp handoff/hooks/safety/*.sh .claude/hooks/
 ```
 
-Then merge the `PreToolUse` / `PostToolUse` blocks from [examples/settings-hooks.json](examples/settings-hooks.json) into your settings and restart Claude Code. Verify with the bundled smoke tests (29 checks, synthetic payloads):
+Then merge the `PreToolUse` / `PostToolUse` blocks from [examples/settings-hooks.json](examples/settings-hooks.json) into your settings and restart Claude Code. Verify with the bundled smoke tests (33 checks, synthetic payloads):
 
 ```bash
 bash handoff/hooks/safety/test-safety-hooks.sh
