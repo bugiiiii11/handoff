@@ -4,6 +4,11 @@
 
 `/handoff start` &nbsp;·&nbsp; `/handoff wrap` &nbsp;·&nbsp; `/handoff save` &nbsp;·&nbsp; `/handoff docs`
 
+This repo ships **three independent skills** — [`handoff`](skills/handoff/SKILL.md) (session
+lifecycle), [`build-kb`](skills/build-kb/SKILL.md) (generate a chatbot knowledge base from a repo)
+and [`polish`](skills/polish/SKILL.md) (audit a surface, rank the best wins, ship them in sprints).
+Each installs on its own — see [Install](#install).
+
 > **v3** — the four separate skills (`/start`, `/wrap`, `/save`, `/doc-update`) are now a single `/handoff` skill with subcommands, plus optional auto-wrap hooks that measure **real** context usage from the transcript. Upgrading from v2? See [Migrating from v2](#migrating-from-v2).
 
 ---
@@ -60,10 +65,51 @@ The rule is detect-and-reconcile, never silently overwrite: the model will fast-
 
 ## Install
 
+Three skills, three separate installs — take only what you want. Paste the prompt for that skill into
+Claude Code and let it read the source before anything reaches your disk. The prompt asks for a safety
+verdict first, so you get a review and a short how-to-use summary instead of a blind copy.
+
+### handoff — session lifecycle
+
+```
+Check this Claude Code skill and tell me if it is safe to install. If it is, install it
+to ~/.claude/skills/ and then briefly explain how to use it.
+https://github.com/bugiiiii11/handoff/blob/main/skills/handoff/SKILL.md
+```
+
+### build-kb — chatbot knowledge base from a repo
+
+```
+Check this Claude Code skill and tell me if it is safe to install. If it is, install it
+to ~/.claude/skills/ and then briefly explain how to use it.
+https://github.com/bugiiiii11/handoff/blob/main/skills/build-kb/SKILL.md
+```
+
+### polish — best-wins audit and sprint plan
+
+`polish` is a **multi-file** skill: `SKILL.md` plus `references/`, `scripts/` and `templates/`. Its
+prompt points at the folder rather than a single file, and says so — a `SKILL.md`-only copy leaves a
+skill that breaks the first time it reaches for a template.
+
+```
+Check this Claude Code skill and tell me if it is safe to install. If it is, install it to
+~/.claude/skills/polish/ -- it is a multi-file skill, so copy SKILL.md together with the
+references/, scripts/ and templates/ folders -- then briefly explain how to use it.
+https://github.com/bugiiiii11/handoff/tree/main/skills/polish
+```
+
+Restart Claude Code after installing, then type `/handoff start`, `/build-kb` or `/polish` to verify
+the skill registered.
+
+### Doing it by hand
+
+None of this is magic — a skill is a folder under `~/.claude/skills/`. Clone and copy whichever ones
+you want:
+
 ```bash
 git clone https://github.com/bugiiiii11/handoff.git
 mkdir -p ~/.claude/skills
-cp -r handoff/skills/* ~/.claude/skills/
+cp -r handoff/skills/polish ~/.claude/skills/     # or handoff, or build-kb
 ```
 
 Windows (PowerShell):
@@ -71,12 +117,14 @@ Windows (PowerShell):
 ```powershell
 git clone https://github.com/bugiiiii11/handoff.git
 New-Item -ItemType Directory -Force -Path "$HOME\.claude\skills" | Out-Null
-Copy-Item -Recurse -Force handoff\skills\* "$HOME\.claude\skills\"
+Copy-Item -Recurse -Force handoff\skills\polish "$HOME\.claude\skills\"
 ```
 
-That installs globally (every project). For a per-project install, copy into the project's `.claude/skills/` instead. Restart Claude Code, then type `/handoff start` to verify.
+Copy `handoff/skills/*` instead of one name to take all three. That installs globally (every
+project); for a per-project install, copy into the project's `.claude/skills/` instead.
 
-Uninstall: `rm -rf ~/.claude/skills/handoff` (PowerShell: `Remove-Item -Recurse -Force "$HOME\.claude\skills\handoff"`).
+To uninstall, delete that one directory — `~/.claude/skills/polish` and nothing else. The skills write
+no config outside their own folder.
 
 ---
 
@@ -215,9 +263,27 @@ Your existing `handoff.md` keeps working. If it has grown large, the first `/han
 
 ---
 
-## Bonus skill: build-kb
+## The other two skills
 
-The install also ships [`skills/build-kb/`](skills/build-kb/SKILL.md) — a one-shot `/build-kb` command that scans your repo's user-facing content (README, marketing pages, docs, pricing) and generates a chatbot-ready `knowledge-base.md`, organized into fixed categories, never inventing content. Useful for seeding any website chatbot; built for [ChatKit](https://www.mdntech.org).
+### build-kb
+
+[`skills/build-kb/`](skills/build-kb/SKILL.md) — a one-shot `/build-kb` command that scans your repo's user-facing content (README, marketing pages, docs, pricing) and generates a chatbot-ready `knowledge-base.md`, organized into fixed categories, never inventing content. Useful for seeding any website chatbot; built for [ChatKit](https://www.mdntech.org).
+
+### polish
+
+[`skills/polish/`](skills/polish/SKILL.md) — `/polish` turns "this could be better" into a ranked, pickable plan you actually ship. Five subcommands:
+
+| Command | What it does |
+|---------|--------------|
+| **/polish scan `<target>`** | Token-budgeted audit. Every finding gets an ID, a code citation, a value (1-5), an effort size (XS/S/M/L), a risk, a token cost and where it shows. Ranked by **win score = value / effort**. Ships nothing. |
+| **/polish plan `<picks>`** | Applies your picks and unpicks, then packs them into 3-5 sprints of at most 6 points each. Sprint 1 is always the measuring instrument plus the zero-design-risk wins. |
+| **/polish run `<sprint>`** | Ships exactly ONE sprint to your working branch, writes a record doc, and hands back a human verification checklist. |
+| **/polish page** | Renders the findings as a standalone pick sheet you can read away from the terminal. |
+| **/polish status** | Where the plan stands: what shipped, what is picked, what is left. |
+
+The design rule the whole skill is built around: **audit first and ship nothing; the human picks; one sprint per session with a way to measure the result; the verdict is the human's, never the model's.** Risk-H and Cost-H items are never in a sprint unless you tick them.
+
+It is surface-agnostic — a game, a feature, a landing page or a whole project — and it reads the repo to cite real `file:line` evidence rather than offering generic advice. Multi-file skill: see the [install prompt](#polish--best-wins-audit-and-sprint-plan) above.
 
 ---
 

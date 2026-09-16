@@ -1,0 +1,176 @@
+<title>Polish Pick Sheet</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --panel: #ffffff; --ink: #14181d; --muted: #5b6672; --line: #d8dee5;
+    --accent: #0b7f8c; --accent-ink: #ffffff; --warn: #b4540a; --bad: #b3261e; --ok: #1e7a3f;
+    --chip: #e9eef3; --rec: #e3f4f6;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0d1117; --panel: #151b23; --ink: #e6edf3; --muted: #9aa7b4; --line: #2a333d;
+    --accent: #38c7d6; --accent-ink: #06141a; --warn: #f0a04b; --bad: #ff6b62; --ok: #4fd07a;
+    --chip: #1f2830; --rec: #0f2a30;
+  } }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --panel: #151b23; --ink: #e6edf3; --muted: #9aa7b4; --line: #2a333d;
+    --accent: #38c7d6; --accent-ink: #06141a; --warn: #f0a04b; --bad: #ff6b62; --ok: #4fd07a;
+    --chip: #1f2830; --rec: #0f2a30;
+  }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 22px 0 8px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+  .sub { color: var(--muted); margin-bottom: 14px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
+  button, select { font: inherit; padding: 6px 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .sprints { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .sprint { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .sprint b { display: block; margin-bottom: 4px; } .sprint .m { color: var(--muted); font-size: 12px; }
+  .sprint .over { color: var(--bad); font-weight: 600; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 900px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  tr.rec { background: var(--rec); } tr.off td { opacity: .55; }
+  td.id { font-weight: 700; white-space: nowrap; } td.num { text-align: right; white-space: nowrap; }
+  .chip { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--chip); font-size: 12px; white-space: nowrap; }
+  .chip.H { color: var(--bad); font-weight: 600; } .chip.M { color: var(--warn); } .chip.L { color: var(--ok); }
+  .chip.design { color: var(--accent); border: 1px solid var(--accent); background: transparent; }
+  code { font-size: 12px; background: var(--chip); padding: 1px 4px; border-radius: 4px; }
+  textarea { width: 100%; min-height: 64px; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .legend { font-size: 12px; color: var(--muted); margin-top: 6px; }
+</style>
+
+<div class="wrap">
+  <h1 id="title">Polish pick sheet</h1>
+  <div class="sub" id="subtitle"></div>
+
+  <div class="bar">
+    <button class="primary" id="b-rec">Recommended set</button>
+    <button id="b-all">Tick all</button>
+    <button id="b-none">Untick all</button>
+    <select id="f-area"><option value="">All areas</option></select>
+    <select id="f-sort">
+      <option value="win">Sort: win score</option>
+      <option value="id">Sort: ID</option>
+      <option value="value">Sort: value</option>
+      <option value="risk">Sort: risk</option>
+    </select>
+  </div>
+
+  <h2>Sprints (picked items, points rule: at most 6 per sprint)</h2>
+  <div class="sprints" id="sprints"></div>
+
+  <h2>Items</h2>
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th></th><th>ID</th><th>Area</th><th>Finding / fix</th><th>Where</th><th>Value</th><th>Effort</th><th>Risk</th><th>Cost</th><th>Visible</th><th>Win</th><th>Sprint</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <div class="legend">Highlighted rows are the recommended set. Risk H / Cost H rows arrive unticked -- tick them only if you accept the risk or the token spend. Effort points: XS 0.5, S 1, M 3, L 6. Win = value / points.</div>
+
+  <h2>Copy picks (paste to <code>/polish plan</code>)</h2>
+  <textarea id="out" readonly></textarea>
+</div>
+
+<script>
+// ---- DATA: fill from the audit tables. Keep the shape; do not restyle. ----
+const META = { target: "Target name", audit: "path/to/target-polish-audit.md", session: "S000" };
+// Suggested sprint order from the audit section 5 (IDs in execution order). Items not listed = Later pool.
+const SPRINTS = [
+  { n: 1, title: "Measure + zero-design-risk wins", ids: ["A9", "A1a", "A3"] },
+  { n: 2, title: "Feel", ids: ["D1", "D2"] },
+];
+// One entry per audit row. rec = in the recommended set. design = a design pick (needs an explicit tick).
+const ITEMS = [
+  { id: "A9",  area: "A perf",   title: "Perf readout (?perf=1): fps, frame-ms p95, entities", where: "--",            value: 4, effort: "S",  risk: "L", cost: "L", visible: "desktop", rec: true,  design: false, deps: [] },
+  { id: "A1a", area: "A perf",   title: "Unmount the 3D background on the game route",         where: "App.jsx:360",   value: 5, effort: "XS", risk: "L", cost: "L", visible: "desktop", rec: true,  design: false, deps: [] },
+  { id: "A3",  area: "A perf",   title: "Critical-lives alarm runs from tick 0 (threshold = starting lives)", where: "hud/constants.js:47", value: 4, effort: "XS", risk: "L", cost: "L", visible: "both", rec: true, design: false, deps: [] },
+  { id: "D1",  area: "D feel",   title: "Projectiles for ranged attacks (pooled sprites over impactDelay)", where: "PixiBattlefield.jsx", value: 4, effort: "M", risk: "L", cost: "M", visible: "both", rec: true, design: false, deps: [] },
+  { id: "D2",  area: "D feel",   title: "Hit sparks + death burst (one ParticleContainer)",     where: "PixiBattlefield.jsx", value: 3, effort: "S", risk: "L", cost: "M", visible: "both", rec: true, design: false, deps: ["D1"] },
+  { id: "B4",  area: "B HUD",    title: "Mobile thumb-zone layout",                            where: "HUDv3Overlay.jsx", value: 5, effort: "L", risk: "M", cost: "H", visible: "mobile", rec: false, design: true, deps: [] },
+];
+// ---- END DATA ----
+
+const PTS = { XS: 0.5, S: 1, M: 3, L: 6 };
+const RISK_ORDER = { L: 0, M: 1, H: 2 };
+const KEY = "polish-picks:" + META.target;
+const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
+const sprintOf = {}; SPRINTS.forEach(s => s.ids.forEach(id => sprintOf[id] = s.n));
+let picked = new Set();
+
+function load() {
+  try { const s = localStorage.getItem(KEY); if (s) { picked = new Set(JSON.parse(s)); return; } } catch (e) {}
+  picked = new Set(ITEMS.filter(i => i.rec).map(i => i.id));
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify([...picked])); } catch (e) {} }
+const win = i => i.value / PTS[i.effort];
+
+function render() {
+  document.getElementById("title").textContent = META.target + " -- polish pick sheet";
+  document.getElementById("subtitle").textContent = "Audit " + META.audit + " (" + META.session + "). Tick what ships; the text box at the bottom is what you paste back.";
+  const area = document.getElementById("f-area").value;
+  const sort = document.getElementById("f-sort").value;
+  let rows = ITEMS.filter(i => !area || i.area === area);
+  rows.sort((a, b) => sort === "id" ? a.id.localeCompare(b.id, undefined, { numeric: true })
+    : sort === "value" ? b.value - a.value
+    : sort === "risk" ? RISK_ORDER[a.risk] - RISK_ORDER[b.risk] || win(b) - win(a)
+    : win(b) - win(a) || RISK_ORDER[a.risk] - RISK_ORDER[b.risk]);
+  const tb = document.getElementById("rows"); tb.innerHTML = "";
+  for (const i of rows) {
+    const on = picked.has(i.id);
+    const tr = document.createElement("tr");
+    tr.className = (i.rec ? "rec " : "") + (on ? "" : "off");
+    tr.innerHTML = `<td><input type="checkbox" data-id="${i.id}" ${on ? "checked" : ""}></td>
+      <td class="id">${i.id}${i.design ? ' <span class="chip design">design pick</span>' : ""}</td>
+      <td>${i.area}</td>
+      <td>${i.title}${i.deps.length ? ' <span class="chip">needs ' + i.deps.join(", ") + "</span>" : ""}</td>
+      <td><code>${i.where}</code></td>
+      <td class="num">${i.value}</td><td class="num">${i.effort} (${PTS[i.effort]})</td>
+      <td><span class="chip ${i.risk}">${i.risk}</span></td><td><span class="chip ${i.cost}">${i.cost}</span></td>
+      <td>${i.visible}</td><td class="num">${win(i).toFixed(1)}</td><td class="num">${sprintOf[i.id] || "later"}</td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll("input").forEach(cb => cb.addEventListener("change", e => {
+    const id = e.target.dataset.id; e.target.checked ? picked.add(id) : picked.delete(id);
+    save(); render();
+  }));
+  renderSprints(); renderOut();
+}
+
+function renderSprints() {
+  const box = document.getElementById("sprints"); box.innerHTML = "";
+  const all = [...SPRINTS, { n: "later", title: "Later pool", ids: ITEMS.map(i => i.id).filter(id => !sprintOf[id]) }];
+  for (const s of all) {
+    const ids = s.ids.filter(id => picked.has(id));
+    const pts = ids.reduce((a, id) => a + PTS[byId[id].effort], 0);
+    const maxRisk = ids.reduce((m, id) => Math.max(m, RISK_ORDER[byId[id].risk]), -1);
+    const d = document.createElement("div"); d.className = "sprint";
+    d.innerHTML = `<b>${s.n === "later" ? "Later" : "Sprint " + s.n} -- ${s.title}</b>
+      <div>${ids.length ? ids.join(", ") : "<span class='m'>nothing picked</span>"}</div>
+      <div class="m">${pts} pt${s.n !== "later" && pts > 6 ? ' <span class="over">over 6 -- split or unpick</span>' : ""}
+      ${maxRisk >= 0 ? " · max risk " + ["L", "M", "H"][maxRisk] : ""}</div>`;
+    box.appendChild(d);
+  }
+}
+
+function renderOut() {
+  const rec = new Set(ITEMS.filter(i => i.rec).map(i => i.id));
+  const extra = [...picked].filter(id => !rec.has(id));
+  const unpicked = [...rec].filter(id => !picked.has(id));
+  const missingDeps = [...picked].filter(id => byId[id].deps.some(d => !picked.has(d)));
+  document.getElementById("out").value =
+    "PICKS: " + [...picked].sort().join(" ") +
+    " | UNPICK: " + (unpicked.join(" ") || "-") +
+    " | ADDED: " + (extra.join(" ") || "-") +
+    (missingDeps.length ? "\nWARNING deps unmet for: " + missingDeps.join(" ") : "");
+}
+
+document.getElementById("b-rec").onclick = () => { picked = new Set(ITEMS.filter(i => i.rec).map(i => i.id)); save(); render(); };
+document.getElementById("b-all").onclick = () => { picked = new Set(ITEMS.map(i => i.id)); save(); render(); };
+document.getElementById("b-none").onclick = () => { picked = new Set(); save(); render(); };
+document.getElementById("f-area").addEventListener("change", render);
+document.getElementById("f-sort").addEventListener("change", render);
+[...new Set(ITEMS.map(i => i.area))].forEach(a => { const o = document.createElement("option"); o.value = a; o.textContent = a; document.getElementById("f-area").appendChild(o); });
+load(); render();
+</script>
